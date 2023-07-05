@@ -57,7 +57,7 @@ app.post('/cadastro', async (req, res) => {
         if(req.body.password.length < 3) errorMessage = 'Senha deve ter no mínimo 3 caracteres';
 
         if(req.body.name == undefined || req.body.name.length == 0) errorMessage = 'Campo nome inválido';
-        
+
         if(req.body.email == undefined || req.body.email.length == 0 || !req.body.email.includes('@')) errorMessage = 'Campo email inválido';
 
         return res.status(422).send({ error: hasError.details, message: errorMessage });
@@ -70,7 +70,7 @@ app.post('/cadastro', async (req, res) => {
            
         const encryptedPassword = bcrypt.hashSync(req.body.password,10);
     
-        await db.collection('users').insertOne({ name: req.body.name, password:encryptedPassword,email:req.body.email});
+        await db.collection('users').insertOne({ name: req.body.name, password:encryptedPassword,email:req.body.email,balance:0,transactions:[]});
 
         return res.sendStatus(201);
         
@@ -97,11 +97,13 @@ app.post('/', async (req, res) => {
             if (bcrypt.compareSync(req.body.password, foundUser.password)) {
                 const generatedToken = uuidv4();
 
-                await db.collection('sessions').insertOne({ user: foundUser.name, token: generatedToken });
+                await db.collection('sessions').insertOne({ user: foundUser.name, token: generatedToken});
 
                 const obj = {
                     token: generatedToken,
-                    name: foundUser.name
+                    name: foundUser.name,
+                    balance:foundUser.balance,
+                    transactions:foundUser.transactions
                 }
 
                 return res.status(200).send(obj);
