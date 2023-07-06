@@ -11,12 +11,6 @@ dotenv.config();
 const mongoClient = new MongoClient(process.env.DATABASE_URL);
 const app = express();
 
-// const messageSchema = joi.object({
-//     to: joi.string().required(),
-//     text: joi.string().required(),
-//     type: joi.string().valid('message', 'private_message').required(),
-// });
-
 start();
 
 async function start() {
@@ -154,7 +148,7 @@ app.post('/nova-transacao/:tipo', async (req, res) => {
 
         const userInfo = await db.collection('users').findOne({ email: foundUser.email});
 
-        const balanceValue = req.params.tipo == 'in' ? Number(userInfo.balance) + Number(req.body.value) : Number(userInfo.balance) - Number(req.body.value);
+        const balanceValue = req.params.tipo == 'entrada' ? Number(userInfo.balance) + Number(req.body.value) : Number(userInfo.balance) - Number(req.body.value);
         await db.collection('users').updateOne({ email:foundUser.email},{ $set: {transactions: [...userInfo.transactions,{...req.body,type:req.params.tipo}], balance: balanceValue} });
 
         return res.sendStatus(201);
