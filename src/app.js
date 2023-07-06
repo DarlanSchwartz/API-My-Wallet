@@ -121,7 +121,7 @@ app.post('/nova-transacao/:tipo', async (req, res) => {
     if (!token || token == '') return res.sendStatus(401);
 
     const transactionSchema = joi.object({
-        value: joi.number().required(),
+        value: joi.number().positive().required(),
         description: joi.string().required(),
         date: joi.string().required(),
     });
@@ -133,6 +133,8 @@ app.post('/nova-transacao/:tipo', async (req, res) => {
         let errorMessage = '';
 
         if(isNaN(Number(req.body.value))) errorMessage = 'Valor não pode ser uma string em uma transação';
+
+        if(!isNaN(Number(req.body.value) && Number(req.body.value) < 0)) errorMessage += '\nValor não pode ser negativo em uma transação';
 
         if(req.body.description == undefined || req.body.description.length == 0) errorMessage += '\nDescrição da transação não pode estar vazia';
 
