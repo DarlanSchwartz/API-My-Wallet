@@ -151,7 +151,7 @@ app.post('/nova-transacao/:tipo', async (req, res) => {
         const userInfo = await db.collection('users').findOne({ email: foundUser.email});
 
         const balanceValue = req.params.tipo == 'entrada' ? Number(userInfo.balance) + Number(req.body.value) : Number(userInfo.balance) - Number(req.body.value);
-        await db.collection('users').updateOne({ email:foundUser.email},{ $set: {transactions: [...userInfo.transactions,{...req.body,type:req.params.tipo}], balance: balanceValue} });
+        await db.collection('users').updateOne({ email:foundUser.email},{ $set: {transactions: [...userInfo.transactions,{...req.body,type:req.params.tipo,id:uuidv4()}], balance: balanceValue} });
 
         return res.sendStatus(201);
         
@@ -181,21 +181,41 @@ app.get('/home', async (req, res) => {
         console.log(error.message);
         return res.status(500).send({ message: 'Internal server error' });
     }
-
-
 });
 
 // -------- BONUS ------------
 
-app.delete('/deletar-registro/:tipo', async (req, res) => {
-    const token = req.headers.token;
+app.delete('/deletar-registro/:id', async (req, res) => {
+    const token = req.headers.authorization;
+    const id  = req.params.id;
 
+    if (!token || !id) return res.sendStatus(401);
 
-    if (!token) return res.sendStatus(401);
+   try {
+    const foundUser = await db.collection('sessions').findOne({ token: token.replace('Bearer ','')});
+    if (!foundUser) return res.status(401).send({message:'Usuário não está logado!'});
 
+    const userInfo = await db.collection('users').findOne({ email: foundUser.email});
+    if (!userInfo) return res.status(401).send({message:'Usuário não existe!'});
+
+    const newTransactions = userInfo.transactions.filter(transaction => transaction.id !== id);
+    let newBalance = 0;
+
+    newTransactions.forEach(trans =>{
+        newBalance = trans.tipo == 'entrada' ? newBalance + Number(trans.value) : newBalance - Number(trans.value);
+    });
+
+    await db.collection('users').updateOne({ email:foundUser.email},{ $set: {transactions: newTransactions, balance: newBalance} });
+
+    return res.status(202).send({transactions:newTransactions,balance:newBalance});
+
+   } catch (error) {
+    console.log(error);
+    return res.status(500).send({ message: 'Internal server error' });
+   }
 });
 
-app.put('/editar-registro/:tipo', async (req, res) => {
+app.put('/editar-registro/:id', async (req, res) => {
     const token = req.headers.token;
 
 
