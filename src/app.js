@@ -75,6 +75,7 @@ app.post('/cadastro', async (req, res) => {
         return res.sendStatus(201);
         
     } catch (error) {
+        console.log(error.message);
         return res.status(500).send({ message: 'Internal server error' });
     }
 });
@@ -97,7 +98,7 @@ app.post('/', async (req, res) => {
             if (bcrypt.compareSync(req.body.password, foundUser.password)) {
                 const generatedToken = uuidv4();
 
-                await db.collection('sessions').insertOne({ user: foundUser.email, token: generatedToken});
+                await db.collection('sessions').insertOne({ email: foundUser.email, token: generatedToken});
 
                 const obj = {
                     token: generatedToken,
@@ -116,12 +117,13 @@ app.post('/', async (req, res) => {
             return res.status(404).send({message:'Usuário não encontrado'});
         }
     } catch (error) {
+        console.log(error.message);
         return res.status(500).send({ message: 'Internal server error' });
     }
 });
 
 app.post('/nova-transacao/:tipo', async (req, res) => {
-    const token = req.headers;
+    const token = req.headers.authorization;
     if (!token || token == '') return res.sendStatus(401);
 
     const transactionSchema = joi.object({
@@ -146,17 +148,20 @@ app.post('/nova-transacao/:tipo', async (req, res) => {
     }
 
     try {
-        const foundUser = await db.collection('sessions').findOne({ token: req.headers.replace('Bearer ','')});
-        const userInfo = await db.collection('users').findOne({ email: foundUser.email});
+        const foundUser = await db.collection('sessions').findOne({ token:token.replace('Bearer ','')});
 
         if (!foundUser) return res.status(401).send({message:'Usuário não está logado!'});
 
+        const userInfo = await db.collection('users').findOne({ email: foundUser.email});
+
         //{ name: req.body.name, password:encryptedPassword,email:req.body.email,balance:0,transactions:[]}
-        await db.collection('users').updateOne({ email:foundUser.email},{ $set: {transactions: [...userInfo.transactions.toArray(),req.body], balance: Number(userInfo.balance) + Number(req.body.value)} });
+        const balanceValue = req.params.tipo == 'in' ? Number(userInfo.balance) + Number(req.body.value) : Number(userInfo.balance) - Number(req.body.value);
+        await db.collection('users').updateOne({ email:foundUser.email},{ $set: {transactions: [...userInfo.transactions,{...req.body,type:req.params.tipo}], balance: balanceValue} });
 
         return res.sendStatus(201);
         
     } catch (error) {
+        console.log(error.message);
         return res.status(500).send({ message: 'Internal server error' });
     }
 
@@ -164,24 +169,21 @@ app.post('/nova-transacao/:tipo', async (req, res) => {
 
 // ---------------- GET ---------------
 app.get('/home', async (req, res) => {
-    const token = req.headers.token;
+    const token = req.headers.authorization;
 
-
-    if (!token) return res.sendStatus(401);
+    if (!token || token == '') return res.sendStatus(401);
 
     try {
-        const foundUser = await db.collection('sessions').findOne({ token: req.headers.replace('Bearer ','')});
-        const userInfo = await db.collection('users').findOne({ email: foundUser.email});
-
+        const foundUser = await db.collection('sessions').findOne({ token: token.replace('Bearer ','')});
         if (!foundUser) return res.status(401).send({message:'Usuário não está logado!'});
+
+        const userInfo = await db.collection('users').findOne({ email: foundUser.email});
         if (!userInfo) return res.status(401).send({message:'Usuário não existe!'});
 
-        //{ name: req.body.name, password:encryptedPassword,email:req.body.email,balance:0,transactions:[]}
-        
-
-        return res.status(200).send(userInfo.transactions.toArray());
+        return res.status(200).send(userInfo.transactions);
         
     } catch (error) {
+        console.log(error.message);
         return res.status(500).send({ message: 'Internal server error' });
     }
 
