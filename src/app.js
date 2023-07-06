@@ -42,32 +42,31 @@ app.post('/cadastro', async (req, res) => {
         name: joi.string().required(),
     });
 
-    const hasError = userSchema.validate(req.body,{abortEarly: false}).error;
+    const hasError = userSchema.validate(req.body, { abortEarly: false }).error;
 
-    if (hasError)
-    {
+    if (hasError) {
         let errorMessage = '';
 
-        if(req.body.password.length < 3) errorMessage += 'Senha deve ter no mínimo 3 caracteres';
+        if (req.body.password.length < 3) errorMessage += 'Senha deve ter no mínimo 3 caracteres';
 
-        if(req.body.name == undefined || req.body.name.length == 0) errorMessage += '\nCampo nome inválido';
+        if (req.body.name == undefined || req.body.name.length == 0) errorMessage += '\nCampo nome inválido';
 
-        if(req.body.email == undefined || req.body.email.length == 0 || !req.body.email.includes('@')) errorMessage += '\nCampo email inválido';
+        if (req.body.email == undefined || req.body.email.length == 0 || !req.body.email.includes('@')) errorMessage += '\nCampo email inválido';
 
         return res.status(422).send({ error: hasError.details, message: errorMessage });
     }
 
     try {
-        const foundUser = await db.collection('users').findOne({ email: req.body.email});
+        const foundUser = await db.collection('users').findOne({ email: req.body.email });
 
-        if (foundUser) return res.status(409).send({message:'Já existe um usuário cadastrado com este e-mail'});
-           
-        const encryptedPassword = bcrypt.hashSync(req.body.password,10);
-    
-        await db.collection('users').insertOne({ name: req.body.name, password:encryptedPassword,email:req.body.email,balance:0,transactions:[]});
+        if (foundUser) return res.status(409).send({ message: 'Já existe um usuário cadastrado com este e-mail' });
+
+        const encryptedPassword = bcrypt.hashSync(req.body.password, 10);
+
+        await db.collection('users').insertOne({ name: req.body.name, password: encryptedPassword, email: req.body.email, balance: 0, transactions: [] });
 
         return res.sendStatus(201);
-        
+
     } catch (error) {
         console.log(error.message);
         return res.status(500).send({ message: 'Internal server error' });
@@ -81,7 +80,7 @@ app.post('/', async (req, res) => {
         password: joi.string().min(3).required()
     });
 
-    const hasError = userSchema.validate(req.body,{abortEarly: false}).error;
+    const hasError = userSchema.validate(req.body, { abortEarly: false }).error;
 
     if (hasError) return res.status(422).send({ error: hasError.details, message: 'Campos inseridos inválidos' });
 
@@ -92,23 +91,22 @@ app.post('/', async (req, res) => {
             if (bcrypt.compareSync(req.body.password, foundUser.password)) {
                 const generatedToken = uuidv4();
 
-                await db.collection('sessions').insertOne({ email: foundUser.email, token: generatedToken});
+                await db.collection('sessions').insertOne({ email: foundUser.email, token: generatedToken });
 
                 const obj = {
                     token: generatedToken,
                     name: foundUser.name,
-                    balance:foundUser.balance,
-                    transactions:foundUser.transactions
+                    balance: foundUser.balance,
+                    transactions: foundUser.transactions
                 }
 
                 return res.status(200).send(obj);
             }
 
-            return res.status(401).send({message: 'Senha incorreta'});
+            return res.status(401).send({ message: 'Senha incorreta' });
         }
-        else
-        {
-            return res.status(404).send({message:'Usuário não encontrado'});
+        else {
+            return res.status(404).send({ message: 'Usuário não encontrado' });
         }
     } catch (error) {
         console.log(error.message);
@@ -126,35 +124,34 @@ app.post('/nova-transacao/:tipo', async (req, res) => {
         date: joi.string().required(),
     });
 
-    const hasError = transactionSchema.validate(req.body,{abortEarly: false}).error;
+    const hasError = transactionSchema.validate(req.body, { abortEarly: false }).error;
 
-    if (hasError)
-    {
+    if (hasError) {
         let errorMessage = '';
 
-        if(isNaN(Number(req.body.value))) errorMessage = 'Valor não pode ser uma string em uma transação';
+        if (isNaN(Number(req.body.value))) errorMessage = 'Valor não pode ser uma string em uma transação';
 
-        if(!isNaN(Number(req.body.value) && Number(req.body.value) < 0)) errorMessage += '\nValor não pode ser negativo em uma transação';
+        if (!isNaN(Number(req.body.value) && Number(req.body.value) < 0)) errorMessage += '\nValor não pode ser negativo em uma transação';
 
-        if(req.body.description == undefined || req.body.description.length == 0) errorMessage += '\nDescrição da transação não pode estar vazia';
+        if (req.body.description == undefined || req.body.description.length == 0) errorMessage += '\nDescrição da transação não pode estar vazia';
 
-        if(req.body.date == undefined || req.body.date.length == 0 || req.body.date == '') errorMessage += '\nData inválida';
+        if (req.body.date == undefined || req.body.date.length == 0 || req.body.date == '') errorMessage += '\nData inválida';
 
         return res.status(422).send({ error: hasError.details, message: errorMessage });
     }
 
     try {
-        const foundUser = await db.collection('sessions').findOne({ token:token.replace('Bearer ','')});
+        const foundUser = await db.collection('sessions').findOne({ token: token.replace('Bearer ', '') });
 
-        if (!foundUser) return res.status(401).send({message:'Usuário não está logado!'});
+        if (!foundUser) return res.status(401).send({ message: 'Usuário não está logado!' });
 
-        const userInfo = await db.collection('users').findOne({ email: foundUser.email});
+        const userInfo = await db.collection('users').findOne({ email: foundUser.email });
 
         const balanceValue = req.params.tipo == 'entrada' ? Number(userInfo.balance) + Number(req.body.value) : Number(userInfo.balance) - Number(req.body.value);
-        await db.collection('users').updateOne({ email:foundUser.email},{ $set: {transactions: [...userInfo.transactions,{...req.body,type:req.params.tipo,id:uuidv4()}], balance: balanceValue} });
+        await db.collection('users').updateOne({ email: foundUser.email }, { $set: { transactions: [...userInfo.transactions, { ...req.body, type: req.params.tipo, id: uuidv4() }], balance: balanceValue } });
 
         return res.sendStatus(201);
-        
+
     } catch (error) {
         console.log(error.message);
         return res.status(500).send({ message: 'Internal server error' });
@@ -169,14 +166,14 @@ app.get('/home', async (req, res) => {
     if (!token || token == '') return res.sendStatus(401);
 
     try {
-        const foundUser = await db.collection('sessions').findOne({ token: token.replace('Bearer ','')});
-        if (!foundUser) return res.status(401).send({message:'Usuário não está logado!'});
+        const foundUser = await db.collection('sessions').findOne({ token: token.replace('Bearer ', '') });
+        if (!foundUser) return res.status(401).send({ message: 'Usuário não está logado!' });
 
-        const userInfo = await db.collection('users').findOne({ email: foundUser.email});
-        if (!userInfo) return res.status(401).send({message:'Usuário não existe!'});
+        const userInfo = await db.collection('users').findOne({ email: foundUser.email });
+        if (!userInfo) return res.status(401).send({ message: 'Usuário não existe!' });
 
-        return res.status(200).send({transactions:userInfo.transactions,balance:userInfo.balance,username:userInfo.name});
-        
+        return res.status(200).send({ transactions: userInfo.transactions, balance: userInfo.balance, username: userInfo.name });
+
     } catch (error) {
         console.log(error.message);
         return res.status(500).send({ message: 'Internal server error' });
@@ -187,32 +184,37 @@ app.get('/home', async (req, res) => {
 
 app.delete('/deletar-registro/:id', async (req, res) => {
     const token = req.headers.authorization;
-    const id  = req.params.id;
+    const id = req.params.id;
 
     if (!token || !id) return res.sendStatus(401);
 
-   try {
-    const foundUser = await db.collection('sessions').findOne({ token: token.replace('Bearer ','')});
-    if (!foundUser) return res.status(401).send({message:'Usuário não está logado!'});
+    try {
+        const foundUser = await db.collection('sessions').findOne({ token: token.replace('Bearer ', '') });
+        if (!foundUser) return res.status(401).send({ message: 'Usuário não está logado!' });
 
-    const userInfo = await db.collection('users').findOne({ email: foundUser.email});
-    if (!userInfo) return res.status(401).send({message:'Usuário não existe!'});
+        const userInfo = await db.collection('users').findOne({ email: foundUser.email });
+        if (!userInfo) return res.status(401).send({ message: 'Usuário não existe!' });
 
-    const newTransactions = userInfo.transactions.filter(transaction => transaction.id !== id);
-    let newBalance = 0;
+        const newTransactions = userInfo.transactions.filter(transaction => transaction.id !== id);
+        let newBalance = 0;
 
-    newTransactions.forEach(trans =>{
-        newBalance = trans.tipo == 'entrada' ? newBalance + Number(trans.value) : newBalance - Number(trans.value);
-    });
+        newTransactions.forEach(trans => {
+            if (trans.type == 'entrada') {
+                newBalance += Number(trans.value);
+            }
+            else {
+                newBalance -= Number(trans.value);
+            }
+        });
 
-    await db.collection('users').updateOne({ email:foundUser.email},{ $set: {transactions: newTransactions, balance: newBalance} });
+        await db.collection('users').updateOne({ email: foundUser.email }, { $set: { transactions: newTransactions, balance: newBalance } });
 
-    return res.status(202).send({transactions:newTransactions,balance:newBalance});
+        return res.status(202).send({ transactions: newTransactions, balance: newBalance });
 
-   } catch (error) {
-    console.log(error);
-    return res.status(500).send({ message: 'Internal server error' });
-   }
+    } catch (error) {
+        console.log(error);
+        return res.status(500).send({ message: 'Internal server error' });
+    }
 });
 
 app.put('/editar-registro/:id', async (req, res) => {
