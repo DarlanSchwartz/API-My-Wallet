@@ -154,7 +154,6 @@ app.post('/nova-transacao/:tipo', async (req, res) => {
 
         const userInfo = await db.collection('users').findOne({ email: foundUser.email});
 
-        //{ name: req.body.name, password:encryptedPassword,email:req.body.email,balance:0,transactions:[]}
         const balanceValue = req.params.tipo == 'in' ? Number(userInfo.balance) + Number(req.body.value) : Number(userInfo.balance) - Number(req.body.value);
         await db.collection('users').updateOne({ email:foundUser.email},{ $set: {transactions: [...userInfo.transactions,{...req.body,type:req.params.tipo}], balance: balanceValue} });
 
@@ -180,7 +179,7 @@ app.get('/home', async (req, res) => {
         const userInfo = await db.collection('users').findOne({ email: foundUser.email});
         if (!userInfo) return res.status(401).send({message:'Usuário não existe!'});
 
-        return res.status(200).send(userInfo.transactions);
+        return res.status(200).send({transactions:userInfo.transactions,balance:userInfo.balance,username:userInfo.name});
         
     } catch (error) {
         console.log(error.message);
