@@ -48,17 +48,17 @@ app.post('/cadastro', async (req, res) => {
         name: joi.string().required(),
     });
 
-    const hasError = userSchema.validate(req.body).error;
+    const hasError = userSchema.validate(req.body,{abortEarly: false}).error;
 
     if (hasError)
     {
-        let errorMessage = 'Campos inválidos';
+        let errorMessage = '';
 
-        if(req.body.password.length < 3) errorMessage = 'Senha deve ter no mínimo 3 caracteres';
+        if(req.body.password.length < 3) errorMessage += 'Senha deve ter no mínimo 3 caracteres';
 
-        if(req.body.name == undefined || req.body.name.length == 0) errorMessage = 'Campo nome inválido';
+        if(req.body.name == undefined || req.body.name.length == 0) errorMessage += '\nCampo nome inválido';
 
-        if(req.body.email == undefined || req.body.email.length == 0 || !req.body.email.includes('@')) errorMessage = 'Campo email inválido';
+        if(req.body.email == undefined || req.body.email.length == 0 || !req.body.email.includes('@')) errorMessage += '\nCampo email inválido';
 
         return res.status(422).send({ error: hasError.details, message: errorMessage });
     }
@@ -86,7 +86,7 @@ app.post('/', async (req, res) => {
         password: joi.string().min(3).required()
     });
 
-    const hasError = userSchema.validate(req.body).error;
+    const hasError = userSchema.validate(req.body,{abortEarly: false}).error;
 
     if (hasError) return res.status(422).send({ error: hasError.details, message: 'Campos inseridos inválidos' });
 
@@ -97,7 +97,7 @@ app.post('/', async (req, res) => {
             if (bcrypt.compareSync(req.body.password, foundUser.password)) {
                 const generatedToken = uuidv4();
 
-                await db.collection('sessions').insertOne({ user: foundUser.name, token: generatedToken});
+                await db.collection('sessions').insertOne({ user: foundUser.email, token: generatedToken});
 
                 const obj = {
                     token: generatedToken,
@@ -121,7 +121,45 @@ app.post('/', async (req, res) => {
 });
 
 app.post('/nova-transacao/:tipo', async (req, res) => {
-    const token = req.headers.token;
+    const token = req.headers;
+    if (!token || token == '') return res.sendStatus(401);
+
+    const transactionSchema = joi.object({
+        value: joi.number().required(),
+        description: joi.string().required(),
+        date: joi.string().required(),
+    });
+
+    const hasError = transactionSchema.validate(req.body,{abortEarly: false}).error;
+
+    if (hasError)
+    {
+        let errorMessage = '';
+
+        if(isNaN(Number(req.body.value))) errorMessage = 'Valor não pode ser uma string em uma transação';
+
+        if(req.body.description == undefined || req.body.description.length == 0) errorMessage += '\nDescrição da transação não pode estar vazia';
+
+        if(req.body.date == undefined || req.body.date.length == 0 || req.body.date == '') errorMessage += '\nData inválida';
+
+        return res.status(422).send({ error: hasError.details, message: errorMessage });
+    }
+
+    try {
+        const foundUser = await db.collection('sessions').findOne({ token: req.headers.replace('Bearer ','')});
+        const userInfo = await db.collection('users').findOne({ email: foundUser.email});
+
+        if (!foundUser) return res.status(401).send({message:'Usuário não está logado!'});
+
+        //{ name: req.body.name, password:encryptedPassword,email:req.body.email,balance:0,transactions:[]}
+        await db.collection('users').updateOne({ email:foundUser.email},{ $set: {transactions: [...userInfo.transactions.toArray(),req.body], balance: Number(userInfo.balance) + Number(req.body.value)} });
+
+        return res.sendStatus(201);
+        
+    } catch (error) {
+        return res.status(500).send({ message: 'Internal server error' });
+    }
+
 });
 
 // ---------------- GET ---------------
@@ -130,6 +168,23 @@ app.get('/home', async (req, res) => {
 
 
     if (!token) return res.sendStatus(401);
+
+    try {
+        const foundUser = await db.collection('sessions').findOne({ token: req.headers.replace('Bearer ','')});
+        const userInfo = await db.collection('users').findOne({ email: foundUser.email});
+
+        if (!foundUser) return res.status(401).send({message:'Usuário não está logado!'});
+        if (!userInfo) return res.status(401).send({message:'Usuário não existe!'});
+
+        //{ name: req.body.name, password:encryptedPassword,email:req.body.email,balance:0,transactions:[]}
+        
+
+        return res.status(200).send(userInfo.transactions.toArray());
+        
+    } catch (error) {
+        return res.status(500).send({ message: 'Internal server error' });
+    }
+
 
 });
 
