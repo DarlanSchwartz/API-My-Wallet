@@ -217,12 +217,12 @@ app.delete('/deletar-registro/:id', async (req, res) => {
     }
 });
 
-app.put('/editar-registro/:id', async (req, res) => {
+app.put('/editar-registro/:tipo/:id', async (req, res) => {
 
     const token = req.headers.authorization;
     if (!token) return res.sendStatus(401);
 
-    const id = req.params.id;
+    const {id, tipo} = req.params;
     if(!id || id == '') return res.status(404).send('É necessário um id para editar uma transação!');
 
     const {value,description} = req.body;
